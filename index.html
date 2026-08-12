@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>跑团世界地图生成器 — 架空世界地图｜免费地图制作</title>
+<meta name="description" content="一个种子生成大陆・河川・城市・国境・地名的架空世界地图制作工具。羊皮纸・绘地图・水墨等7种样式，可导出 PNG／SVG／高度图／GeoJSON。无需注册・免费。">
+<link rel="stylesheet" href="css/base.css?v=3">
+<link rel="stylesheet" href="css/panel.css?v=4">
+<link rel="stylesheet" href="css/stage.css?v=3">
+<link rel="stylesheet" href="css/modal.css?v=3">
+<link rel="stylesheet" href="css/view3d.css?v=2">
+</head>
+<body>
+<header>
+  <div class="brand">
+    <h1>跑团世界地图</h1>
+    <span class="sub">架空世界地图生成器</span>
+  </div>
+  <div class="hdr-sp"></div>
+  <div class="hdr-ad" id="hdrAd"></div>
+  <div class="hdr-acts">
+    <button class="ibtn" id="btnShare" title="复制此地图的链接">
+      <svg viewBox="0 0 24 24"><path d="M4 12v8h16v-8"/><path d="M12 16V3"/><path d="M8 7l4-4 4 4"/></svg>
+      <span class="lbl">分享</span>
+    </button>
+    <button class="ibtn" id="btnHelp" title="用法与算法">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.2a2.6 2.6 0 013.9-1.6c1.4.9 1.1 2.6-.3 3.3-.8.4-1.1 1-1.1 1.9"/><path d="M12 17.2h.01"/></svg>
+    </button>
+  </div>
+</header>
+
+<div class="wrap">
+  <aside id="panel">
+    <div id="panelBody"></div>
+  </aside>
+
+  <main>
+    <div class="stagewrap" id="stagewrap">
+      <div class="stage" id="stage">
+        <canvas id="cv" width="2560" height="1440"></canvas>
+        <div class="brushring" id="brushring"></div>
+        <div class="pickring" id="pickring"></div>
+      </div>
+      <div class="busy" id="busy"><span class="sp"></span>绘制中…</div>
+    </div>
+    <div class="stagebar">
+      <span class="maptitle" id="mapTitle"></span>
+      <span class="sep"></span>
+      <button class="ibtn icon-only" id="btnUndo" title="撤销 (⌘Z)" disabled>
+        <svg viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg>
+      </button>
+      <button class="ibtn icon-only" id="btnRedo" title="重做 (⇧⌘Z)" disabled>
+        <svg viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"/><path d="M20 9H10a6 6 0 000 12h3"/></svg>
+      </button>
+      <span class="sep"></span>
+      <button class="ibtn icon-only" id="btnZoomOut" title="缩小">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6"/><path d="M20 20l-4.3-4.3"/></svg>
+      </button>
+      <span class="zoomv" id="zoomV">100%</span>
+      <button class="ibtn icon-only" id="btnZoomIn" title="放大">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M8 11h6"/><path d="M11 8v6"/><path d="M20 20l-4.3-4.3"/></svg>
+      </button>
+      <button class="ibtn" id="btnZoomReset" title="恢复显示 (R)"><span class="lbl">等倍</span></button>
+      <span class="sep"></span>
+      <button class="ibtn" id="btn3d" title="立体观赏 (D)">
+        <svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"/><path d="M4 7.5l8 4.5 8-4.5"/><path d="M12 12v9"/></svg>
+        <span class="lbl">3D视图</span>
+      </button>
+      <button class="ibtn" id="btnExitEdit" style="display:none;background:#2e6f9e;border-color:#4a8dbc;color:#eaf3fa"
+        title="退出手绘编辑模式">
+        <span class="lbl">退出手绘编辑</span>
+      </button>
+      <button class="ibtn" id="btnExitPlace" style="display:none;background:#b25a1c;border-color:#d3782e;color:#fbeee0"
+        title="退出放置编辑模式">
+        <span class="lbl">退出放置编辑</span>
+      </button>
+    </div>
+  </main>
+
+  <div class="side-ad" id="sideAd"></div>
+</div>
+
+<!-- 确认 -->
+<div class="modal" id="confirmModal">
+  <div class="box">
+    <h3>确认</h3>
+    <p id="confirmMsg">要清除全部编辑吗？</p>
+    <div class="foot">
+      <button class="btn ghost" id="confirmCancel">取消</button>
+      <button class="btn primary" id="confirmOk">执行</button>
+    </div>
+  </div>
+</div>
+
+<!-- 分享 -->
+<div class="modal" id="shareModal">
+  <div class="box">
+    <h3>分享</h3>
+    <p>打开此链接将复现相同设置的地图（不含手绘编辑。如需保留编辑请使用项目保存）。</p>
+    <div class="sharerow">
+      <input id="shareUrl" readonly>
+      <button class="ibtn" id="shareCopy">复制</button>
+    </div>
+    <div class="foot"><button class="btn ghost" id="shareClose">关闭</button></div>
+  </div>
+</div>
+
+<!-- 羊皮纸（国家档案） -->
+<div class="modal" id="loreModal">
+  <div class="box lore">
+    <div id="loreBody"></div>
+    <div class="foot"><button class="btn ghost" id="loreClose">关闭</button></div>
+  </div>
+</div>
+
+<!-- 帮助 -->
+<div class="modal wide" id="helpModal">
+  <div class="box">
+    <h3>工作原理</h3>
+    <div class="algo" id="helpBody"></div>
+    <div class="foot">
+      <button class="btn ghost" id="helpClose">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 3D 视图 -->
+<div class="v3d" id="v3d">
+  <div class="v3d-stage" id="v3dStage">
+    <div class="v3d-top">
+      <span class="v3d-title" id="v3dTitle"></span>
+      <span class="sp"></span>
+      <button class="ibtn icon-only" id="v3dSave" title="此视角保存为 PNG">
+        <svg viewBox="0 0 24 24"><path d="M4 4h12l4 4v12H4z"/><path d="M8 4v6h8"/><circle cx="12" cy="15" r="2.6"/></svg>
+      </button>
+      <button class="ibtn" id="v3dClose" title="关闭 (Esc)">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg>
+        <span class="lbl">关闭</span>
+      </button>
+    </div>
+    <div class="v3d-busy" id="v3dBusy">
+      <div class="v3d-loader">
+        <div class="v3d-step"><span class="sp"></span><span id="v3dBusyText">正在准备</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="v3d-bar">
+    <div class="v3d-ctl">
+      <label for="v3dExag">高度</label>
+      <input type="range" id="v3dExag" min="0.2" max="2.4" step="0.05" value="1">
+      <span class="v" id="v3dExagV">1.00</span>
+      <label for="v3dFont">文字</label>
+      <input type="range" id="v3dFont" min="50" max="140" step="5" value="90">
+      <span class="v" id="v3dFontV">90%</span>
+    </div>
+    <div class="v3d-ctl">
+      <label for="v3dAz">光照方向</label>
+      <input type="range" id="v3dAz" min="-3.14" max="3.14" step="0.05" value="-0.9">
+      <span class="v" id="v3dAzV">NW</span>
+    </div>
+    <div class="v3d-ctl">
+      <label for="v3dSh">阴影</label>
+      <input type="range" id="v3dSh" min="0" max="1" step="0.05" value="0.55">
+      <span class="v" id="v3dShV">0.55</span>
+    </div>
+    <div class="tg" id="v3dSpin"><span class="dot"></span><span>视角旋转</span></div>
+    <div class="tg" id="v3dLabels"><span class="dot"></span><span>国・地名</span></div>
+    <div class="tg" id="v3dRoutes"><span class="dot"></span><span>道路与航路</span></div>
+    <div class="tg" id="v3dBorders"><span class="dot"></span><span>国境光壁</span></div>
+    <div class="tg" id="v3dFrontier"><span class="dot"></span><span>边境光壁</span></div>
+    <div class="tg" id="v3dTrees"><span class="dot"></span><span>微缩模型</span></div>
+    <div class="tg on" id="v3dOuter"><span class="dot"></span><span>延伸大地</span></div>
+    <span class="sp"></span>
+    <span class="v3d-title">拖拽旋转／滚轮缩放</span>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<input type="file" id="fileInput" accept=".json,application/json" style="display:none">
+
+<script src="src/core.js?v=2"></script>
+<script src="src/terrain.js?v=3"></script>
+<script src="src/climate.js?v=3"></script>
+<script src="src/hydrology.js?v=2"></script>
+<script src="src/biome.js?v=2"></script>
+<script src="src/seaice.js?v=2"></script>
+<script src="src/names.js?v=2"></script>
+<script src="src/world.js?v=2"></script>
+<script src="src/pipeline.js?v=3"></script>
+<script src="src/style.js?v=5"></script>
+<script src="src/render.js?v=5"></script>
+<script src="src/symbols.js?v=2"></script>
+<script src="src/decor.js?v=2"></script>
+<script src="src/exporters.js?v=2"></script>
+<script src="src/lore.js?v=2"></script>
+<script src="src/view3d.js?v=2"></script>
+<script src="src/ui.js?v=18"></script>
+</body>
+</html>

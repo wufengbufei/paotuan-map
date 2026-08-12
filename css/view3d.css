@@ -1,0 +1,38 @@
+/* =========================================================
+   奇幻地图 / view3d — 3D 视图覆盖层
+   ========================================================= */
+.v3d{
+  position:fixed;inset:0;display:none;flex-direction:column;
+  background:#e8dcc4;z-index:90;
+}
+.v3d.show{display:flex}
+.v3d-stage{flex:1;position:relative;overflow:hidden}
+.v3d-stage canvas{display:block;width:100%;height:100%}
+.v3d-top{
+  position:absolute;top:0;left:0;right:0;display:flex;align-items:center;
+  gap:10px;padding:12px 16px;z-index:5;
+  background:linear-gradient(180deg,rgba(225,210,178,.8),transparent);
+}
+.v3d-title{color:var(--txt);font-size:14px;letter-spacing:.08em}
+.v3d-top .sp,.v3d-bar .sp{flex:1}
+.v3d .ibtn{background:rgba(240,225,200,.5)}
+.v3d-busy{
+  position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(225,210,178,.7);z-index:8;
+}
+.v3d-busy.show{display:flex}
+.v3d-step{display:flex;align-items:center;gap:10px;color:#cba25a;font-size:13px;letter-spacing:.15em}
+.v3d-step .sp{width:16px;height:16px;border:2px solid rgba(203,162,90,.3);
+  border-top-color:#cba25a;border-radius:50%;animation:spin .8s linear infinite}
+
+.v3d-bar{
+  flex:none;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  padding:10px 16px;background:#d9cba8;border-top:1px solid #b8a270;
+}
+.v3d-ctl{display:flex;align-items:center;gap:7px}
+.v3d-ctl label{font-size:12px;color:var(--txt-2);white-space:nowrap}
+.v3d-ctl input[type=range]{width:110px}
+.v3d-ctl .v{font-family:Georgia,serif;font-size:12px;color:var(--brass);min-width:38px}
+.v3d-bar .tg{background:rgba(240,225,200,.4);border-color:#b8a270;color:var(--txt-3)}
+.v3d-bar .tg.on{color:var(--brass-d);border-color:var(--brass-d)}
+.v3d-bar .tg.on .dot{background:var(--brass);border-color:var(--brass);box-shadow:inset 0 0 0 2px rgba(240,225,200,.8)}
