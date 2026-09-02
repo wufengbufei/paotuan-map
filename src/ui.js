@@ -741,6 +741,30 @@ $('fileInput').addEventListener('change',e=>{
 });
 
 /* ---------- 分享 ---------- */
+/* 移动端面板抽屉切换 */
+(function(){
+  const btn=$('btnPanel'), mask=$('panelMask');
+  function setOpen(open){
+    document.body.classList.toggle('panel-open',open);
+    if(!open) mask.style.display='none';
+  }
+  btn.onclick=()=>{
+    const open=!document.body.classList.contains('panel-open');
+    setOpen(open);
+    if(open) mask.style.display='block';
+  };
+  mask.addEventListener('click',()=>setOpen(false));
+  // 面板内切换参数后，移动端自动收起抽屉
+  document.addEventListener('click',e=>{
+    if(document.body.classList.contains('panel-open')){
+      const inside=e.target.closest('aside');
+      if(inside){
+        const chip=e.target.closest('.chip,.seg button,.tg');
+        if(chip) setTimeout(()=>setOpen(false),260);
+      }
+    }
+  });
+})();
 $('btnShare').onclick=()=>{
   const u=new URL(location.href);
   u.searchParams.set('cfg',btoa(encodeURIComponent(JSON.stringify(P))));

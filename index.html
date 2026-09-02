@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>跑团世界地图生成器 — 架空世界地图｜免费地图制作</title>
 <meta name="description" content="一个种子生成大陆・河川・城市・国境・地名的架空世界地图制作工具。羊皮纸・绘地图・水墨等7种样式，可导出 PNG／SVG／高度图／GeoJSON。无需注册・免费。">
-<link rel="stylesheet" href="css/base.css?v=3">
+<link rel="stylesheet" href="css/base.css?v=4">
 <link rel="stylesheet" href="css/panel.css?v=4">
 <link rel="stylesheet" href="css/stage.css?v=3">
 <link rel="stylesheet" href="css/modal.css?v=3">
@@ -21,6 +21,10 @@
   <div class="hdr-sp"></div>
   <div class="hdr-ad" id="hdrAd"></div>
   <div class="hdr-acts">
+    <button class="ibtn panel-toggle" id="btnPanel" title="参数面板">
+      <svg viewBox="0 0 24 24"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+      <span class="lbl">参数</span>
+    </button>
     <button class="ibtn" id="btnShare" title="复制此地图的链接">
       <svg viewBox="0 0 24 24"><path d="M4 12v8h16v-8"/><path d="M12 16V3"/><path d="M8 7l4-4 4 4"/></svg>
       <span class="lbl">分享</span>
@@ -32,6 +36,7 @@
 </header>
 
 <div class="wrap">
+  <div class="panel-mask" id="panelMask"></div>
   <aside id="panel">
     <div id="panelBody"></div>
   </aside>
@@ -200,6 +205,6 @@
 <script src="src/exporters.js?v=2"></script>
 <script src="src/lore.js?v=2"></script>
 <script src="src/view3d.js?v=2"></script>
-<script src="src/ui.js?v=18"></script>
+<script src="src/ui.js?v=19"></script>
 </body>
 </html>
