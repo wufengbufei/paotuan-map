@@ -279,4 +279,89 @@ function drawTerritoryOutline(cv,G,N){
 }
 
 NS.lore={buildLore,drawTerritoryOutline};
+
+/* =========================================================
+   海域档案：点击海洋/湖泊/河流时生成
+   ========================================================= */
+const SEA_PREFIX=['碧','沧','玄','银','青','蔚','深','渊','霜','曜','汐','冥','澄','烟'];
+const SEA_MID=['涛','澜','波','潮','溟','流','湾','泽','浪','漪','泓','汐'];
+const SEA_SUFFIX=['海','洋','之海','内海','湾','海峡','海域'];
+
+function buildSeaLore(G,gi,P){
+  const {gw,gh,biome,elev,sea}=G;
+  const B=NS.biome.BIOME;
+  const isWater=i=>biome[i]<NS.biome.LAND_MIN;
+  if(!isWater(gi)) return null;
+  const vis=new Uint8Array(gw*gh);
+  const stack=[gi]; vis[gi]=1;
+  let n=0,sumDepth=0,maxDepth=0;
+  let minX=gw,maxX=-1,minY=gh,maxY=-1;
+  let sumX=0,sumY=0;
+  const coastNations=new Set();
+  let riverCount=0,lakeCount=0;
+  const owner=G.nations?G.nations.owner:null;
+  while(stack.length){
+    const i=stack.pop(); n++;
+    const x=i%gw,y=(i/gw)|0;
+    if(x<minX)minX=x; if(x>maxX)maxX=x;
+    if(y<minY)minY=y; if(y>maxY)maxY=y;
+    sumX+=x; sumY+=y;
+    const d=Math.max(0,sea-elev[i]); sumDepth+=d; if(d>maxDepth)maxDepth=d;
+    const bb=biome[i];
+    if(bb===B.RIVER)riverCount++;
+    else if(bb===B.LAKE)lakeCount++;
+    const dirs=[[1,0],[-1,0],[0,1],[0,-1]];
+    for(let k=0;k<4;k++){
+      const nx=x+dirs[k][0],ny=y+dirs[k][1];
+      if(nx<0||nx>=gw||ny<0||ny>=gh)continue;
+      const j=ny*gw+nx;
+      if(!isWater(j)){
+        if(owner&&owner[j]>=0) coastNations.add(owner[j]);
+      } else if(!vis[j]){ vis[j]=1; stack.push(j); }
+    }
+  }
+  if(n===0) return null;
+  const cx=sumX/n, cy=sumY/n;
+  const touchesEdge=minX<=0||maxX>=gw-1||minY<=0||maxY>=gh-1;
+  let kind;
+  if(riverCount>n*0.5) kind='river';
+  else if(lakeCount>n*0.5) kind='lake';
+  else if(touchesEdge) kind='ocean';
+  else kind='sea';
+
+  const rnd=makeRng((P.seed ^ (Math.round(cx)*7919) ^ (Math.round(cy)*104729))>>>0);
+  let name=SEA_PREFIX[(rnd()*SEA_PREFIX.length)|0]+SEA_MID[(rnd()*SEA_MID.length)|0];
+  if(rnd()<0.62) name+=SEA_SUFFIX[(rnd()*SEA_SUFFIX.length)|0];
+
+  const kmPerCell=(C.TYPE_KM[G.worldType]||3000)/gw;
+  const areaKm2=n*kmPerCell*kmPerCell;
+  const avgD=sumDepth/n, maxD=maxDepth;
+  const avgMeters=Math.round(avgD/sea*4000);
+  const maxMeters=Math.round(maxD/sea*6000);
+  const areaStr=areaKm2>10000?('约'+(areaKm2/10000).toFixed(1)+'万平方公里'):('约'+Math.round(areaKm2)+'平方公里');
+
+  const nationsList=G.nations?G.nations.list:[];
+  const coastNames=[...coastNations].map(id=>nationsList[id]?nationsList[id].name:null).filter(Boolean);
+
+  const parts=[];
+  if(kind==='ocean') parts.push('一望无际的外海，是世界航路所经之处');
+  else if(kind==='sea') parts.push('四面几乎被陆地环抱的内海');
+  else if(kind==='lake') parts.push('大陆深处的一泓湖泊');
+  else parts.push('蜿蜒流淌的河流水系');
+  if(avgMeters>0) parts.push('平均水深约'+avgMeters+'米');
+  if(maxMeters>0) parts.push('最深处可达'+maxMeters+'米');
+  if(coastNames.length) parts.push('沿岸与'+coastNames.slice(0,3).join('、')+(coastNames.length>3?'等':'')+'相接');
+  const overview=parts.join('，')+'。';
+
+  return {
+    name, kind,
+    area:areaStr,
+    depth:'平均约'+avgMeters+'米，最深约'+maxMeters+'米',
+    overview,
+    coast:coastNames.length?coastNames.slice(0,4).join('、'):'—',
+    cx:Math.round(cx), cy:Math.round(cy),
+  };
+}
+
+NS.lore.buildSeaLore=buildSeaLore;
 })(typeof self!=='undefined'?self:this);

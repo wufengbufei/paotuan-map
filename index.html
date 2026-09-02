@@ -8,7 +8,7 @@
 <meta name="description" content="一个种子生成大陆・河川・城市・国境・地名的架空世界地图制作工具。羊皮纸・绘地图・水墨等7种样式，可导出 PNG／SVG／高度图／GeoJSON。无需注册・免费。">
 <link rel="stylesheet" href="css/base.css?v=4">
 <link rel="stylesheet" href="css/panel.css?v=4">
-<link rel="stylesheet" href="css/stage.css?v=3">
+<link rel="stylesheet" href="css/stage.css?v=4">
 <link rel="stylesheet" href="css/modal.css?v=3">
 <link rel="stylesheet" href="css/view3d.css?v=2">
 </head>
@@ -116,11 +116,15 @@
   </div>
 </div>
 
-<!-- 羊皮纸（国家档案） -->
+<!-- 羊皮纸（国家/海域档案） -->
 <div class="modal" id="loreModal">
   <div class="box lore">
     <div id="loreBody"></div>
-    <div class="foot"><button class="btn ghost" id="loreClose">关闭</button></div>
+    <div class="foot">
+      <button class="btn ghost" id="loreEdit" style="display:none">编辑</button>
+      <button class="btn primary" id="loreSave" style="display:none">保存</button>
+      <button class="btn ghost" id="loreClose">关闭</button>
+    </div>
   </div>
 </div>
 
@@ -203,8 +207,8 @@
 <script src="src/symbols.js?v=2"></script>
 <script src="src/decor.js?v=2"></script>
 <script src="src/exporters.js?v=2"></script>
-<script src="src/lore.js?v=2"></script>
+<script src="src/lore.js?v=3"></script>
 <script src="src/view3d.js?v=2"></script>
-<script src="src/ui.js?v=19"></script>
+<script src="src/ui.js?v=20"></script>
 </body>
 </html>

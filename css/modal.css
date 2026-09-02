@@ -37,6 +37,12 @@
 .lore-row:last-child{border-bottom:none}
 .lore-label{display:block;font-size:11px;color:var(--brass);letter-spacing:.06em;margin-bottom:2px}
 .lore-val{display:block;font-size:13px;color:var(--txt);line-height:1.7}
+.lore-input{
+  display:block;width:100%;padding:8px 10px;border-radius:var(--r-s);
+  border:1px solid var(--line-2);background:rgba(255,252,245,.75);color:var(--txt);
+  font-size:13px;font-family:var(--zh);line-height:1.6;resize:vertical}
+.lore-input:focus{outline:none;border-color:var(--brass-d)}
+.lore-input[type=text]{font-size:14px}
 
 /* 提示条 */
 .toast{

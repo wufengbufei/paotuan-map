@@ -8,7 +8,7 @@
   box-shadow:var(--sh),0 0 0 1px #000,0 0 0 8px #1d160f,0 0 0 9px #3a2d1b;
   will-change:transform;
 }
-.stage canvas{display:block;border-radius:2px}
+.stage canvas{display:block;border-radius:2px;touch-action:none}
 .stage.editing{box-shadow:var(--sh),0 0 0 1px #000,0 0 0 8px #f0e8d4,0 0 0 9px #a04820}
 .stage.editing canvas{cursor:none;touch-action:none}
 .stage.placing canvas{cursor:crosshair}

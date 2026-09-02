@@ -543,7 +543,12 @@ function updateModeExitBtns(){
 
 /* ---------- 画布交互 ---------- */
 let drawing=false;
-let panning=false, panStart=null;
+let pointers=new Map();      // pointerId -> {x,y}
+let panStart=null;           // 单指平移起点 {x,y,ox,oy}
+let pinch=null;              // 双指缩放状态
+let tapStart=null;           // 点击判定起点 {x,y,t}
+let tapMoved=false;
+const TAP_SLOP=8, TAP_MS=450;
 function canvasPos(e){
   const r=canvas.getBoundingClientRect();
   // 直接从视口坐标映射到网格坐标，跳过 canvas 像素中间层避免精度损失
@@ -562,55 +567,120 @@ function brushAt(e){
 }
 canvas.addEventListener('pointerdown',e=>{
   if(!G)return;
+  canvas.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+
   if(editOn){
     drawing=true;
-    canvas.setPointerCapture(e.pointerId);
     brushAt(e);
     redrawOverlay();
-  } else if(placeMode){
+    return;
+  }
+  if(placeMode){
     placeAt(e);
-  } else {
-    // 非编辑模式：点击领土 → 弹出国家档案
-    try{
-      const p=canvasPos(e);
-      if(G&&G.nations&&G.nations.owner&&G.nations.list){
-        const gi=Math.max(0,Math.min(G.gw*G.gh-1,(Math.floor(p.gy)*G.gw+Math.floor(p.gx))|0));
-        const oid=G.nations.owner[gi];
-        if(oid>=0&&G.nations.list[oid]&&G.nations.list[oid].cells>=12){
-          showLore(oid);
-          return;
-        }
-      }
-    }catch(err){ toast('点击出错: '+err.message); }
-    panning=true;
+    return;
+  }
+
+  // 浏览模式
+  if(pointers.size===1){
+    tapStart={x:e.clientX,y:e.clientY,t:Date.now()}; tapMoved=false;
     panStart={x:e.clientX,y:e.clientY,ox:viewX,oy:viewY};
-    stage.classList.add('panning');
-    canvas.setPointerCapture(e.pointerId);
+  } else if(pointers.size===2){
+    const [a,b]=[...pointers.values()];
+    pinch={
+      d0:Math.max(1,Math.hypot(a.x-b.x,a.y-b.y)),
+      scale0:viewScale,
+      mid0:{x:(a.x+b.x)/2,y:(a.y+b.y)/2},
+      vx0:viewX, vy0:viewY
+    };
+    tapStart=null; panStart=null; stage.classList.remove('panning');
   }
 });
 canvas.addEventListener('pointermove',e=>{
+  if(!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+
   if(drawing&&editOn){
     brushAt(e);
     redrawOverlay();
-  } else if(panning&&panStart){
-    viewX=panStart.ox+(e.clientX-panStart.x);
-    viewY=panStart.oy+(e.clientY-panStart.y);
+    return;
+  }
+
+  // 双指缩放
+  if(pointers.size===2&&pinch){
+    const [a,b]=[...pointers.values()];
+    const d=Math.hypot(a.x-b.x,a.y-b.y);
+    const mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+    viewScale=clampViewScale(pinch.scale0*(d/pinch.d0));
+    viewX=pinch.vx0+(mid.x-pinch.mid0.x);
+    viewY=pinch.vy0+(mid.y-pinch.mid0.y);
+    stage.classList.remove('panning');
+    updateZoomV(); fitStage();
+    return;
+  }
+
+  // 单指平移
+  if(pointers.size===1&&panStart){
+    const dx=e.clientX-panStart.x, dy=e.clientY-panStart.y;
+    if(tapStart&&Math.hypot(e.clientX-tapStart.x,e.clientY-tapStart.y)>TAP_SLOP) tapMoved=true;
+    if(tapMoved) stage.classList.add('panning');
+    viewX=panStart.ox+dx;
+    viewY=panStart.oy+dy;
     fitStage();
   }
 });
-canvas.addEventListener('pointerup',()=>{
-  if(drawing){
-    drawing=false;
-    regenerate({snapshot:false});
-    commitEdit();
+function endPointer(e){
+  pointers.delete(e.pointerId);
+  if(pointers.size===0){
+    const wasTap=tapStart&&!tapMoved&&(Date.now()-tapStart.t<TAP_MS);
+    if(drawing){
+      drawing=false;
+      regenerate({snapshot:false});
+      commitEdit();
+    }
+    if(wasTap) handleTap(e.clientX,e.clientY);
+    panStart=null; pinch=null; tapStart=null; tapMoved=false;
+    stage.classList.remove('panning');
+  } else if(pointers.size===1){
+    // 从双指回到单指：重置平移起点
+    const [a]=[...pointers.values()];
+    panStart={x:a.x,y:a.y,ox:viewX,oy:viewY};
+    pinch=null; tapStart=null; tapMoved=false;
   }
-  if(panning){
-    panning=false; panStart=null; stage.classList.remove('panning');
-  }
-});
-canvas.addEventListener('pointercancel',()=>{
-  drawing=false; panning=false; panStart=null; stage.classList.remove('panning');
-});
+}
+canvas.addEventListener('pointerup',endPointer);
+canvas.addEventListener('pointercancel',endPointer);
+
+/* 滚轮缩放（桌面） */
+canvas.addEventListener('wheel',e=>{
+  if(!G)return;
+  e.preventDefault();
+  const f=Math.exp(-e.deltaY*0.0015);
+  viewScale=clampViewScale(viewScale*f);
+  updateZoomV(); fitStage();
+},{passive:false});
+
+/* 点击地图：陆地弹国家档案，水域弹海域卡片 */
+function handleTap(cx,cy){
+  try{
+    const p=canvasPos({clientX:cx,clientY:cy});
+    if(!G||!G.biome) return;
+    const gi=Math.max(0,Math.min(G.gw*G.gh-1,(Math.floor(p.gy)*G.gw+Math.floor(p.gx))|0));
+    const b=G.biome[gi];
+    const isLand=b>=NS.biome.LAND_MIN;
+    if(isLand){
+      if(G.nations&&G.nations.owner&&G.nations.list){
+        const oid=G.nations.owner[gi];
+        if(oid>=0&&G.nations.list[oid]&&G.nations.list[oid].cells>=12){
+          showLore(oid);
+        }
+      }
+    } else {
+      showSeaLore(gi);
+    }
+  }catch(err){ toast('点击出错: '+err.message); }
+}
+function clampViewScale(s){ return Math.max(0.75,Math.min(6,s)); }
 let overlayRedrawTm=null;
 function redrawOverlay(){
   // 绘制中仅重分类（快）
@@ -663,8 +733,8 @@ function placeAt(e){
 }
 
 /* ---------- 视图缩放 ---------- */
-$('btnZoomIn').onclick=()=>{ viewScale=Math.min(6,viewScale*1.18); updateZoomV(); fitStage(); };
-$('btnZoomOut').onclick=()=>{ viewScale=Math.max(0.75,viewScale/1.18); updateZoomV(); fitStage(); };
+$('btnZoomIn').onclick=()=>{ viewScale=clampViewScale(viewScale*1.18); updateZoomV(); fitStage(); };
+$('btnZoomOut').onclick=()=>{ viewScale=clampViewScale(viewScale/1.18); updateZoomV(); fitStage(); };
 $('btnZoomReset').onclick=()=>{ viewScale=1; viewX=0; viewY=0; updateZoomV(); fitStage(); };
 function updateZoomV(){ $('zoomV').textContent=Math.round(viewScale*100)+'%'; }
 
@@ -848,7 +918,13 @@ $('btnHelp').onclick=()=>{
   $('helpModal').classList.add('show');
 };
 $('helpClose').onclick=()=>$('helpModal').classList.remove('show');
-/* ---------- 国家档案弹窗 ---------- */
+/* ---------- 档案卡片（国家/海域）编辑与保存 ---------- */
+let loreCtx=null; // {key, fields:[{label,key,value,editable,multiline}]}
+
+function loreKey(key){ return 'fmap-lore-'+key; }
+function loadLoreEdit(key){ try{ const s=localStorage.getItem(loreKey(key)); return s?JSON.parse(s):null; }catch(e){ return null; } }
+function saveLoreEdit(key,obj){ try{ localStorage.setItem(loreKey(key),JSON.stringify(obj)); }catch(e){} }
+
 function showLore(oid){
   if(!G){ toast('G missing'); return; }
   if(!G.nations||!G.nations.list||!G.nations.owner){ toast('no nations data'); return; }
@@ -857,34 +933,113 @@ function showLore(oid){
   if(N.cells<12){ toast('nation too small: '+N.cells); return; }
   if(!NS.lore){ toast('lore module missing'); return; }
   const lore=NS.lore.buildLore(G,N,G.cities||[],P);
-
-  // 领土剪影 canvas
+  const key='nation-'+P.seed+'-'+(N.stableId||('n'+N.id));
+  const saved=loadLoreEdit(key)||{};
+  const fields=[
+    {label:'国名', key:'name', value:saved.name!==undefined?saved.name:lore.name, editable:true},
+    {label:'首都', key:'capitalName', value:saved.capitalName!==undefined?saved.capitalName:lore.capitalName, editable:true},
+    {label:'区域', key:'area', value:lore.area, editable:false},
+    {label:'统治者', key:'ruler', value:saved.ruler!==undefined?saved.ruler:lore.ruler, editable:true},
+    {label:'昵称', key:'nickname', value:saved.nickname!==undefined?saved.nickname:lore.nickname, editable:true},
+    {label:'纹章', key:'emblem', value:saved.emblem!==undefined?saved.emblem:lore.emblem, editable:true},
+    {label:'概况', key:'overview', value:saved.overview!==undefined?saved.overview:(lore.overview+' '+lore.capitalDesc+' '+lore.cityDesc), editable:true, multiline:true},
+  ];
   const cv=document.createElement('canvas');
   NS.lore.drawTerritoryOutline(cv,G,N);
+  renderLoreCard('🛡️', fields, key, cv.width>0?cv:null);
+}
 
+function showSeaLore(gi){
+  if(!G||!NS.lore||!NS.lore.buildSeaLore) return;
+  const lore=NS.lore.buildSeaLore(G,gi,P);
+  if(!lore) return;
+  const key='sea-'+P.seed+'-'+lore.cx+'-'+lore.cy;
+  const saved=loadLoreEdit(key)||{};
+  const fields=[
+    {label:'名称', key:'name', value:saved.name!==undefined?saved.name:lore.name, editable:true},
+    {label:'面积', key:'area', value:lore.area, editable:false},
+    {label:'水深', key:'depth', value:lore.depth, editable:false},
+    {label:'沿岸', key:'coast', value:lore.coast, editable:false},
+    {label:'概况', key:'overview', value:saved.overview!==undefined?saved.overview:lore.overview, editable:true, multiline:true},
+  ];
+  renderLoreCard('🌊', fields, key, null);
+}
+
+function renderLoreCard(icon, fields, key, miniCanvas){
+  loreCtx={key, fields};
+  const nameF=fields.find(f=>f.key==='name');
   const body=$('loreBody');
   body.innerHTML='';
-  body.appendChild(el('div',{class:'lore-shield',text:'🛡️'}));
-  body.appendChild(el('h2',{class:'lore-name',text:lore.name}));
+  body.appendChild(el('div',{class:'lore-shield',text:icon}));
+  body.appendChild(el('h2',{class:'lore-name',text:(nameF?nameF.value:'')||'—'}));
   body.appendChild(el('hr'));
-  if(cv.width>0) body.appendChild(el('div',{class:'lore-map'},[cv]));
-  body.appendChild(el('div',{class:'lore-fields'},[
-    field('首都',lore.capitalName),
-    field('区域',lore.area),
-    field('统治者',lore.ruler),
-    field('昵称',lore.nickname),
-    field('纹章',lore.emblem),
-    field('概况',lore.overview+' '+lore.capitalDesc+' '+lore.cityDesc),
-  ]));
+  if(miniCanvas) body.appendChild(el('div',{class:'lore-map'},[miniCanvas]));
+  const fw=el('div',{class:'lore-fields'});
+  fields.forEach(f=>fw.appendChild(fieldRow(f)));
+  body.appendChild(fw);
+  $('loreEdit').style.display='';
+  $('loreSave').style.display='none';
   $('loreModal').classList.add('show');
 }
-function field(label,value){
+
+function fieldRow(f){
+  const valEl=el(f.multiline?'div':'span',{class:'lore-val',text:f.value||'—'});
+  if(f.multiline) valEl.style.cssText='white-space:pre-wrap;line-height:1.8';
   return el('div',{class:'lore-row'},[
-    el('span',{class:'lore-label',text:label}),
-    el('span',{class:'lore-val',text:value})
+    el('span',{class:'lore-label',text:f.label}),
+    valEl
   ]);
 }
-$('loreClose').onclick=()=>$('loreModal').classList.remove('show');
+
+$('loreEdit').onclick=()=>{
+  if(!loreCtx) return;
+  const rows=$('loreBody').querySelectorAll('.lore-row');
+  loreCtx.fields.forEach((f,idx)=>{
+    if(!f.editable) return;
+    const row=rows[idx];
+    if(!row) return;
+    const valEl=row.querySelector('.lore-val');
+    let inp;
+    if(f.multiline){
+      inp=document.createElement('textarea');
+      inp.className='lore-input';
+      inp.rows=5;
+      inp.value=f.value||'';
+    } else {
+      inp=document.createElement('input');
+      inp.className='lore-input';
+      inp.type='text';
+      inp.value=f.value||'';
+    }
+    valEl.replaceWith(inp);
+  });
+  $('loreEdit').style.display='none';
+  $('loreSave').style.display='';
+};
+
+$('loreSave').onclick=()=>{
+  if(!loreCtx) return;
+  const rows=$('loreBody').querySelectorAll('.lore-row');
+  const saveObj={};
+  loreCtx.fields.forEach((f,idx)=>{
+    if(!f.editable) return;
+    const row=rows[idx];
+    if(!row) return;
+    const inp=row.querySelector('.lore-input');
+    if(inp){ f.value=inp.value.trim(); saveObj[f.key]=f.value; }
+  });
+  saveLoreEdit(loreCtx.key, saveObj);
+  const fw=$('loreBody').querySelector('.lore-fields');
+  if(fw){ fw.innerHTML=''; loreCtx.fields.forEach(f=>fw.appendChild(fieldRow(f))); }
+  const nameF=loreCtx.fields.find(f=>f.key==='name');
+  const h2=$('loreBody').querySelector('.lore-name');
+  if(nameF&&h2) h2.textContent=nameF.value||'—';
+  $('loreEdit').style.display='';
+  $('loreSave').style.display='none';
+  toast('已保存');
+};
+
+$('loreClose').onclick=()=>{ $('loreModal').classList.remove('show'); loreCtx=null; };
 
 /* ---------- 键盘 ---------- */
 window.addEventListener('keydown',e=>{
