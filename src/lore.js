@@ -94,8 +94,8 @@ function riverDesc(G,N){
   return `${count}条河流在这片土地上交汇。`;
 }
 
-/* 邻国描述 */
-function neighborDesc(G,N){
+/* 邻国描述（支持名字覆盖联动） */
+function neighborDesc(G,N,overrides){
   const nations=G.nations;
   const own=nations.owner, bios=G.biome, gw=G.gw, gh=G.gh;
   const seen=new Set();
@@ -112,11 +112,17 @@ function neighborDesc(G,N){
   const neighbors=[];
   for(const id of seen){
     const n=nations.list[id];
-    if(n) neighbors.push(n.name);
+    if(n) neighbors.push(nameOf(n,overrides));
   }
   if(neighbors.length===0) return '';
   if(neighbors.length===1) return `它与${neighbors[0]}接壤。`;
   return `它与${neighbors.slice(0,2).join('、')}${neighbors.length>2?'等邻国':''}接壤。`;
+}
+
+/* 取国家显示名：优先用用户编辑后的名字 */
+function nameOf(N,overrides){
+  const sid=N.stableId||('n'+N.id);
+  return (overrides&&overrides[sid])?overrides[sid]:N.name;
 }
 
 /* 面积 */
@@ -157,9 +163,9 @@ function cityRoadDesc(G,N,cities){
 }
 
 /* 生成国家档案 */
-function buildLore(G,N,cities,P){
+function buildLore(G,N,cities,P,overrides){
   const rnd=makeRng((P.seed^0x10a3b^(N.id*2654435761))>>>0);
-  const seedName=N.name;
+  const seedName=nameOf(N,overrides);
 
   // 统治者
   const titlePair=TITLES[Math.floor(rnd()*TITLES.length)];
@@ -193,7 +199,7 @@ function buildLore(G,N,cities,P){
   // 概述
   const tDesc=terrainDesc(G,N);
   const rDesc=riverDesc(G,N);
-  const nDesc=neighborDesc(G,N);
+  const nDesc=neighborDesc(G,N,overrides);
   const overview=[tDesc,rDesc,nDesc].filter(Boolean).join('');
 
   return {
@@ -287,7 +293,7 @@ const SEA_PREFIX=['碧','沧','玄','银','青','蔚','深','渊','霜','曜','�
 const SEA_MID=['涛','澜','波','潮','溟','流','湾','泽','浪','漪','泓','汐'];
 const SEA_SUFFIX=['海','洋','之海','内海','湾','海峡','海域'];
 
-function buildSeaLore(G,gi,P){
+function buildSeaLore(G,gi,P,overrides){
   const {gw,gh,biome,elev,sea}=G;
   const B=NS.biome.BIOME;
   const isWater=i=>biome[i]<NS.biome.LAND_MIN;
@@ -341,7 +347,7 @@ function buildSeaLore(G,gi,P){
   const areaStr=areaKm2>10000?('约'+(areaKm2/10000).toFixed(1)+'万平方公里'):('约'+Math.round(areaKm2)+'平方公里');
 
   const nationsList=G.nations?G.nations.list:[];
-  const coastNames=[...coastNations].map(id=>nationsList[id]?nationsList[id].name:null).filter(Boolean);
+  const coastNames=[...coastNations].map(id=>nationsList[id]?nameOf(nationsList[id],overrides):null).filter(Boolean);
 
   const parts=[];
   if(kind==='ocean') parts.push('一望无际的外海，是世界航路所经之处');

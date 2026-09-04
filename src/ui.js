@@ -458,6 +458,7 @@ function redraw(){
   if(!G) return;
   busy(true);
   requestAnimationFrame(()=>{
+    applyNameOverrides(collectNameOverrides());
     RD.drawMap(ctx,canvas.width,canvas.height,G,P);
     $('mapTitle').innerHTML='《<b>'+G.title+'</b>》';
     busy(false);
@@ -925,6 +926,29 @@ function loreKey(key){ return 'fmap-lore-'+key; }
 function loadLoreEdit(key){ try{ const s=localStorage.getItem(loreKey(key)); return s?JSON.parse(s):null; }catch(e){ return null; } }
 function saveLoreEdit(key,obj){ try{ localStorage.setItem(loreKey(key),JSON.stringify(obj)); }catch(e){} }
 
+/* 收集当前地图所有国家的「编辑后名字」覆盖映射：stableId -> name */
+function collectNameOverrides(){
+  const over={};
+  if(!G||!G.nations||!G.nations.list) return over;
+  G.nations.list.forEach(N=>{
+    const sid=N.stableId||('n'+N.id);
+    const key='nation-'+P.seed+'-'+sid;
+    const s=loadLoreEdit(key);
+    if(s&&s.name) over[sid]=s.name;
+  });
+  return over;
+}
+
+/* 把编辑后的名字应用到地图标签 */
+function applyNameOverrides(over){
+  if(!G||!G.labels) return;
+  for(const it of G.labels){
+    if(it.kind==='region'&&it.entityId&&over[it.entityId]&&it.text!==over[it.entityId]){
+      it.text=over[it.entityId];
+    }
+  }
+}
+
 function showLore(oid){
   if(!G){ toast('G missing'); return; }
   if(!G.nations||!G.nations.list||!G.nations.owner){ toast('no nations data'); return; }
@@ -932,7 +956,8 @@ function showLore(oid){
   if(!N){ toast('nation '+oid+' not found'); return; }
   if(N.cells<12){ toast('nation too small: '+N.cells); return; }
   if(!NS.lore){ toast('lore module missing'); return; }
-  const lore=NS.lore.buildLore(G,N,G.cities||[],P);
+  const over=collectNameOverrides();
+  const lore=NS.lore.buildLore(G,N,G.cities||[],P,over);
   const key='nation-'+P.seed+'-'+(N.stableId||('n'+N.id));
   const saved=loadLoreEdit(key)||{};
   const fields=[
@@ -951,7 +976,8 @@ function showLore(oid){
 
 function showSeaLore(gi){
   if(!G||!NS.lore||!NS.lore.buildSeaLore) return;
-  const lore=NS.lore.buildSeaLore(G,gi,P);
+  const over=collectNameOverrides();
+  const lore=NS.lore.buildSeaLore(G,gi,P,over);
   if(!lore) return;
   const key='sea-'+P.seed+'-'+lore.cx+'-'+lore.cy;
   const saved=loadLoreEdit(key)||{};
@@ -1036,6 +1062,8 @@ $('loreSave').onclick=()=>{
   if(nameF&&h2) h2.textContent=nameF.value||'—';
   $('loreEdit').style.display='';
   $('loreSave').style.display='none';
+  // 若编辑的是国家名，重绘地图标签使其联动
+  if(loreCtx.key.startsWith('nation-')&&saveObj.name) redraw();
   toast('已保存');
 };
 
